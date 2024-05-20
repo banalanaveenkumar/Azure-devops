@@ -1,0 +1,66 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool: mypool2
+
+steps:
+- script: echo Hello, world!
+  displayName: 'Run a one-line script'
+
+- script: |
+    echo Add other tasks to build, test, and deploy your project.
+    echo See https://aka.ms/yaml
+  displayName: 'Run a multi-line script'
+- task: Maven@4
+  inputs:
+    mavenPomFile: 'pom.xml'
+    publishJUnitResults: true
+    testResultsFiles: '**/surefire-reports/TEST-*.xml'
+    javaHomeOption: 'JDKVersion'
+    mavenVersionOption: 'Default'
+    mavenAuthenticateFeed: false
+    effectivePomSkip: false
+    sonarQubeRunAnalysis: false
+    goals: package
+
+- script: cd target && mv *.war ROOT$(Build.BuildId).war && ls
+  displayName: 'list of files and rename war'
+
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: 'target'
+    Contents: 'ROOT$(Build.BuildId).war'
+    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+- task: S3Upload@1
+  inputs:
+    awsCredentials: 'naniawsconection'
+    regionName: 'ap-south-1'
+    bucketName: 'naveenartfact'
+    sourceFolder: '$(Build.ArtifactStagingDirectory)'
+    globExpressions: '**'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
+
+#we have install on agent machine docker and ubuntu user  add to docker group 
+#sudo usermod -aG docker ubuntu
+#sudo chmod 777 //var/run/docker.sock
+# sudo systemctl restart docker
+#sudo systemctl daemon-reload
+#then check docker images: docker images
+- task: Docker@2
+  inputs:
+    containerRegistry: 'docker connection'
+    repository: 'banalanaveenkumar/javaproject'
+    command: 'buildAndPush'
+    Dockerfile: 'Dockerfile'
